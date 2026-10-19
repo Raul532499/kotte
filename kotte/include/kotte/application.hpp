@@ -68,6 +68,7 @@ namespace kotte
             EntityHandle entity;
         };
 
+
         struct BlastEffect final {
             std::vector<Vector2> tile_centres;
             float remaining_seconds = 0.0f;
