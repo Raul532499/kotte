@@ -102,6 +102,7 @@ namespace kotte
         // The player and every enemy are movers; each asks its own collision question.
         update_player(delta_time);
         update_enemies(delta_time);
+        detect_player_enemy_contacts();
         queue_bomb_placement();
     }
 
@@ -263,6 +264,26 @@ namespace kotte
 
             // Synchronize this accepted move before the next enemy query.
             spatial_grid_.update(enemy_handle, old_world_bounds, new_world_bounds);
+        }
+    }
+
+    void Application::detect_player_enemy_contacts() {
+        const Rectangle player_bounds = entity_collision_bounds(player());
+
+        // Broad phase: the grid returns every entity registered in the cells
+        // around the player. These are only candidates, not hits.
+        const SpatialQuery nearby = spatial_grid_.query(player_bounds);
+
+        for (const EntityHandle candidate_handle : nearby.entity_handles) {
+            const Entity* candidate = entities_.try_get(candidate_handle);
+            if (candidate == nullptr || candidate->kind != EntityKind::enemy) {
+                continue;
+            }
+
+            // Narrow phase: only a real overlap of collision bounds is a hit.
+            if (CheckCollisionRecs(player_bounds, entity_collision_bounds(*candidate))) {
+                player_hit_facts_.push_back({ HitSource::enemy });
+            }
         }
     }
 
@@ -722,6 +743,10 @@ namespace kotte
                 continue;
             }
 
+            if (is_player_enemy_pair(proposed_entity.kind, candidate->kind)) {
+                continue;
+            }
+
             // Narrow phase: exact-test the remaining solid candidate.
             ++collision_diagnostics_.exact_tests;
             if(CheckCollisionRecs(proposed_collision_bounds, entity_collision_bounds(*candidate))){
@@ -744,6 +769,11 @@ namespace kotte
         }
 
         return false;
+    }
+
+    bool Application::is_player_enemy_pair(EntityKind first, EntityKind second) noexcept {
+        return (first == EntityKind::player && second == EntityKind::enemy)
+            || (first == EntityKind::enemy && second == EntityKind::player);
     }
 
     Vector2 Application::cardinal_vector(CardinalDirection direction) noexcept{

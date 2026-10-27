@@ -102,6 +102,7 @@ namespace kotte
         void update_player(float delta_time);
         void try_move_player(Vector2 axis_displacement);
         void update_enemies(float delta_time);
+        void detect_player_enemy_contacts();
         void queue_bomb_placement();
         void apply_entity_destructions();
         void apply_bomb_placements();
@@ -131,6 +132,7 @@ namespace kotte
             EntityHandle moving_entity_handle,
             Vector2 proposed_position);
         [[nodiscard]] static bool is_solid(EntityKind kind) noexcept;
+        [[nodiscard]] static bool is_player_enemy_pair(EntityKind first, EntityKind second) noexcept;
         [[nodiscard]] static Vector2 cardinal_vector(CardinalDirection direction) noexcept;
         [[nodiscard]] CardinalDirection different_enemy_direction(CardinalDirection current_direction);
         [[nodiscard]] bool owner_has_active_bomb(EntityHandle owner) const noexcept;
