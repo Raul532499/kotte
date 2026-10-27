@@ -62,14 +62,20 @@ namespace kotte
         assert(place_bomb_requests_.empty());
         assert(bomb_detonated_facts_.empty());
         assert(destroy_entity_requests_.empty());
+        assert(player_hit_facts_.empty());
         frame_actions_ = {};
         collision_diagnostics_ = {};
     }
 
-    void Application::collect_frame_actions() noexcept{
-        if(IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_Q)){
+    void Application::collect_frame_actions() noexcept {
+        if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_Q)) {
             request_exit();
         }
+
+        if (round_state_ != RoundState::playing) {
+            return;
+        }
+
         frame_actions_.place_bomb = IsKeyPressed(KEY_SPACE);
 
         Vector2& movement_direction = frame_actions_.player_movement_direction;
@@ -152,6 +158,16 @@ namespace kotte
         }
 
         bomb_detonated_facts_.clear();
+
+        resolve_player_hits();
+    }
+
+    void Application::resolve_player_hits() {
+        if (round_state_ == RoundState::playing && !player_hit_facts_.empty()) {
+            round_state_ = RoundState::lost;
+            defeat_source_ = player_hit_facts_.front().source;
+        }
+        player_hit_facts_.clear();
     }
 
     void Application::apply_structural_mutations(){
@@ -362,6 +378,7 @@ namespace kotte
                 break;
             case EntityKind::player:
                 // Player-hit consequences are outside the Week 6 lifetime seam.
+                player_hit_facts_.push_back({ HitSource::blast });
                 break;
             }
         }
@@ -479,9 +496,11 @@ namespace kotte
             const RenderLayer layer = visible_candidate->kind == EntityKind::bomb
                 ? RenderLayer::ground
                 : RenderLayer::world;
+            const bool defeated_player = visible_candidate->kind == EntityKind::player
+                && round_state_ == RoundState::lost;
             renderer_.submit({
                 bounds,
-                entity_color(visible_candidate->kind),
+                defeated_player ? defeated_player_color_ : entity_color(visible_candidate->kind),
                 layer,
                 visible_candidate->world_position.y,
                 entity_roundness(visible_candidate->kind)
@@ -537,6 +556,8 @@ namespace kotte
             collision_diagnostics_.exact_tests,
             collision_diagnostics_.contacts);
         DrawText(diagnostics.c_str(), 10, 106, 20, RAYWHITE);
+        diagnostics = std::format("round: {}", round_status_text());
+        DrawText(diagnostics.c_str(), 10, 130, 20, YELLOW);
 
         diagnostics = std::format("seed: {}", seed_);
         DrawText(diagnostics.c_str(), 10, window_.height() - 78, 20, RAYWHITE);
@@ -546,6 +567,18 @@ namespace kotte
         DrawText(diagnostics.c_str(), 10, window_.height() - 54, 20, RAYWHITE);
 
         DrawText("move: WASD/arrows | bomb: Space | quit: Q/Escape", 10, window_.height() - 30, 20, LIGHTGRAY);
+    }
+
+    std::string_view Application::round_status_text() const noexcept {
+        switch (round_state_) {
+        case RoundState::playing: return "Playing";
+        case RoundState::won: return "Won";
+        case RoundState::lost:
+            return defeat_source_ == HitSource::blast
+                ? "Lost (hit by blast)"
+                : "Lost (touched enemy)";
+        }
+        return "Unknown";
     }
 
     void Application::populate_entities(){

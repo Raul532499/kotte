@@ -31,7 +31,7 @@ namespace kotte
         std::size_t enemy_turns = 0;
     };
 
-    class Application final{
+    class Application final {
     public:
         Application(
             int window_width,
@@ -74,12 +74,29 @@ namespace kotte
             float remaining_seconds = 0.0f;
         };
 
+        enum class RoundState : std::uint8_t {
+            playing,
+            won,
+            lost
+        };
+
+        enum class HitSource : std::uint8_t {
+            blast,
+            enemy
+        };
+
+        struct PlayerHit final {
+            HitSource source = HitSource::blast;
+        };
+
+
         void run_frame(float delta_time);
         void begin_frame() noexcept;
         void collect_frame_actions() noexcept;
         void update_gameplay(float delta_time);
         void update_timed_gameplay(float delta_time);
         void resolve_gameplay_facts();
+        void resolve_player_hits();
         void apply_structural_mutations();
         void update_presentation(float delta_time);
         void update_player(float delta_time);
@@ -101,6 +118,7 @@ namespace kotte
             std::uint8_t range);
         void update_camera(float delta_time) noexcept;
         void render();
+        [[nodiscard]] std::string_view round_status_text() const noexcept;
         void populate_entities();
         void initialize_enemies();
         [[nodiscard]] Entity& entity(EntityHandle handle) noexcept;
@@ -139,6 +157,7 @@ namespace kotte
         static constexpr Color blast_color_{0xf2, 0x8f, 0x3b, 0xe8};
         static constexpr Color crate_color_{0xb0, 0x72, 0x3c, 0xff};
         static constexpr Color enemy_color_{0xd9, 0x4f, 0x70, 0xff};
+        static constexpr Color defeated_player_color_{ 0x80, 0x80, 0x80, 0xff };
         static constexpr Color wall_color_{0x78, 0x5f, 0x47, 0xff};
 
         Window window_; // Constructed first, destroyed last.
@@ -155,6 +174,9 @@ namespace kotte
         std::vector<BombDetonated> bomb_detonated_facts_;
         std::vector<DestroyEntityRequest> destroy_entity_requests_;
         std::vector<BlastEffect> blast_effects_;
+        std::vector<PlayerHit> player_hit_facts_;
+        RoundState round_state_ = RoundState::playing;
+        HitSource defeat_source_ = HitSource::blast;
         CollisionDiagnostics collision_diagnostics_;
         std::uint64_t seed_;
         EntityHandle player_handle_;
