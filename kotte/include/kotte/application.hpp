@@ -104,6 +104,7 @@ namespace kotte
         void resolve_gameplay_facts();
         void resolve_player_hits();
         void apply_structural_mutations();
+        void update_round_state();
         void update_presentation(float delta_time);
         void update_player(float delta_time);
         void try_move_player(Vector2 axis_displacement);
@@ -169,6 +170,7 @@ namespace kotte
         static constexpr Color crate_color_{0xb0, 0x72, 0x3c, 0xff};
         static constexpr Color enemy_color_{0xd9, 0x4f, 0x70, 0xff};
         static constexpr Color defeated_player_color_{ 0x80, 0x80, 0x80, 0xff };
+        static constexpr int banner_font_size_ = 60;
         static constexpr Color wall_color_{0x78, 0x5f, 0x47, 0xff};
 
         Window window_; // Constructed first, destroyed last.

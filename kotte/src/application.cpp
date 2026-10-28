@@ -68,7 +68,7 @@ namespace kotte
         }
     }
 
-    void Application::run_frame(float delta_time){
+    void Application::run_frame(float delta_time) {
         // Full frame order:
         // 1. Reset frame-local state.
         // 2. Translate input into gameplay intent.
@@ -76,17 +76,21 @@ namespace kotte
         // 4. Update timed gameplay independently of camera visibility.
         // 5. Resolve gameplay facts into response decisions.
         // 6. Apply structural mutations at one synchronization point.
-        // 7. Update presentation state from the synchronized world.
-        // 8. Extract, sort, and draw this frame's presentation values.
+        // 7. Decide the round result from the synchronized world.
+        // 8. Update presentation state from the synchronized world.
+        // 9. Extract, sort, and draw this frame's presentation values.
         //
         // Keeping one call site per phase makes event lifetime and mutation
         // boundaries visible as the simulation grows.
         begin_frame();
         collect_frame_actions();
-        update_gameplay(delta_time);
-        update_timed_gameplay(delta_time);
+        if (round_state_ == RoundState::playing) {
+            update_gameplay(delta_time);
+            update_timed_gameplay(delta_time);
+        }
         resolve_gameplay_facts();
         apply_structural_mutations();
+        update_round_state();
         update_presentation(delta_time);
         render();
     }
@@ -209,6 +213,16 @@ namespace kotte
         // Entity storage and every derived index change only at this boundary.
         apply_entity_destructions();
         apply_bomb_placements();
+    }
+
+    void Application::update_round_state() {
+        if (round_state_ != RoundState::playing) {
+            return;
+        }
+
+        if (enemy_handles_.empty()) {
+            round_state_ = RoundState::won;
+        }
     }
 
     void Application::update_presentation(float delta_time){
@@ -613,6 +627,18 @@ namespace kotte
         DrawText(diagnostics.c_str(), 10, 106, 20, RAYWHITE);
         diagnostics = std::format("round: {}", round_status_text());
         DrawText(diagnostics.c_str(), 10, 130, 20, YELLOW);
+
+        if (round_state_ != RoundState::playing) {
+            const bool won = round_state_ == RoundState::won;
+            const char* banner = won ? "YOU WIN" : "YOU LOST";
+            const int banner_width = MeasureText(banner, banner_font_size_);
+            DrawText(
+                banner,
+                (window_.width() - banner_width) / 2,
+                (window_.height() - banner_font_size_) / 2,
+                banner_font_size_,
+                won ? GREEN : RED);
+        }
 
         diagnostics = std::format("seed: {}", seed_);
         DrawText(diagnostics.c_str(), 10, window_.height() - 78, 20, RAYWHITE);
