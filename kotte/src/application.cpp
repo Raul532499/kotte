@@ -140,10 +140,11 @@ namespace kotte
         }
     }
 
-    void Application::update_gameplay(float delta_time){
+    void Application::update_gameplay(float delta_time) {
         // The player and every enemy are movers; each asks its own collision question.
         update_player(delta_time);
         update_enemies(delta_time);
+        update_bomb_escapes();
         detect_player_enemy_contacts();
         queue_bomb_placement();
     }
@@ -339,6 +340,22 @@ namespace kotte
         }
     }
 
+    void Application::update_bomb_escapes() {
+        for (const EntityHandle bomb_handle : active_bomb_handles_) {
+            Entity* bomb = entities_.try_get(bomb_handle);
+            if (bomb == nullptr || !bomb->bomb_state.has_value() || !bomb->bomb_state->owner_escaping) {
+                continue;
+            }
+
+            const Entity* owner = entities_.try_get(bomb->bomb_state->owner);
+            const bool still_overlapping = owner != nullptr
+                && CheckCollisionRecs(entity_collision_bounds(*owner), entity_collision_bounds(*bomb));
+            if (!still_overlapping) {
+                bomb->bomb_state->owner_escaping = false;
+            }
+        }
+    }
+
     void Application::detect_player_enemy_contacts() {
         const Rectangle player_bounds = entity_collision_bounds(player());
 
@@ -375,9 +392,9 @@ namespace kotte
     void Application::apply_bomb_placements(){
         for(const PlaceBombRequest& request : place_bomb_requests_){
             const Entity* owner = entities_.try_get(request.owner);
-            if(owner == nullptr || owner->kind != EntityKind::player
-                || owner_has_active_bomb(request.owner)){
-                continue;
+            if (owner == nullptr || owner->kind != EntityKind::player
+                || owner_has_active_bomb(request.owner)) {
+
             }
 
             const Entity bomb{
@@ -872,6 +889,12 @@ namespace kotte
                 continue;
             }
 
+            if (candidate->bomb_state.has_value()
+                && candidate->bomb_state->owner_escaping
+                && candidate->bomb_state->owner == moving_entity_handle) {
+                continue;
+            }
+
             // Narrow phase: exact-test the remaining solid candidate.
             ++collision_diagnostics_.exact_tests;
             if(CheckCollisionRecs(proposed_collision_bounds, entity_collision_bounds(*candidate))){
@@ -883,14 +906,13 @@ namespace kotte
         return blocked;
     }
 
-    bool Application::is_solid(EntityKind kind) noexcept{
-        switch(kind){
+    bool Application::is_solid(EntityKind kind) noexcept {
+        switch (kind) {
         case EntityKind::player:
         case EntityKind::crate:
         case EntityKind::enemy:
-            return true;
         case EntityKind::bomb:
-            return false;
+            return true;
         }
 
         return false;
@@ -932,6 +954,13 @@ namespace kotte
                 && bomb->bomb_state.has_value()
                 && bomb->bomb_state->owner == owner;
         });
+    }
+
+    bool Application::tile_has_live_bomb(Vector2 tile_position) const noexcept {
+        return std::ranges::any_of(active_bomb_handles_, [this, tile_position](EntityHandle bomb_handle) {
+            const Entity* bomb = entities_.try_get(bomb_handle);
+            return bomb != nullptr && Vector2Equals(bomb->world_position, tile_position) != 0;
+            });
     }
 
     Vector2 Application::tile_centre(Vector2 world_position) noexcept{
