@@ -31,6 +31,11 @@ namespace kotte
         std::size_t enemy_turns = 0;
     };
 
+    enum class WorldConfiguration : std::uint8_t {
+        gameplay, 
+        stress    // Large generated room from Weeks 1-6.
+    };
+
     class Application final {
     public:
         Application(
@@ -38,6 +43,7 @@ namespace kotte
             int window_height,
             std::string_view title,
             std::uint64_t seed,
+            WorldConfiguration configuration,
             int target_fps = 0);
 
         Application(const Application&) = delete;
@@ -122,6 +128,9 @@ namespace kotte
         [[nodiscard]] std::string_view round_status_text() const noexcept;
         void populate_entities();
         void initialize_enemies();
+        void populate_gameplay_entities();
+        void populate_stress_entities();
+        [[nodiscard]] EntityHandle create_world_entity(const Entity& new_entity);
         [[nodiscard]] Entity& entity(EntityHandle handle) noexcept;
         [[nodiscard]] const Entity& entity(EntityHandle handle) const noexcept;
         [[nodiscard]] Entity& player() noexcept;
@@ -180,6 +189,7 @@ namespace kotte
         RoundState round_state_ = RoundState::playing;
         HitSource defeat_source_ = HitSource::blast;
         CollisionDiagnostics collision_diagnostics_;
+        WorldConfiguration configuration_;
         std::uint64_t seed_;
         EntityHandle player_handle_;
         bool exit_requested_ = false;

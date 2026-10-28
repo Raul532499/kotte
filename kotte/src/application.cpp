@@ -1,29 +1,63 @@
 #include "kotte/application.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cmath>
 #include <format>
 #include <raymath.h>
 #include <string>
+#include <string_view>
 #include <utility>
+
 
 namespace kotte
 {    
+    namespace
+    {
+        constexpr std::array<std::string_view, 13> gameplay_layout{
+            "###################",
+            "#.....c.....c.....#",
+            "#.P..c..c.....c...#",
+            "#...c....c..e...c.#",
+            "#.c...c.....c.....#",
+            "#....c..c.c....c..#",
+            "#.......c...c...e.#",
+            "#...c.c....c..c...#",
+            "#.c....c.c....c...#",
+            "#...c.....c....c..#",
+            "#..c..e.c.....c...#",
+            "#.....c....c....e.#",
+            "###################"
+        };
+
+        [[nodiscard]] TileMap make_world_map(WorldConfiguration configuration, Random& random) {
+            if (configuration == WorldConfiguration::stress) {
+                return make_room(200, 120, random);
+            }
+            return make_room(
+                static_cast<int>(gameplay_layout.front().size()),
+                static_cast<int>(gameplay_layout.size()),
+                random);
+        }
+    }
+
     Application::Application(
         int width,
         int height,
         std::string_view title,
         std::uint64_t seed,
+        WorldConfiguration configuration,
         int target_fps)
         : window_{width, height, title, target_fps}
         , camera_{window_.size()}
         , random_{seed}
-        , map_{make_room(200, 120, random_)}
+        , map_{ make_world_map(configuration, random_) }
         , spatial_grid_{{
             static_cast<float>(map_.width() * tile_size_),
             static_cast<float>(map_.height() * tile_size_)}, spatial_cell_size_}
-        , seed_{seed}{
+        , seed_{ seed }
+        , configuration_{ configuration } {
         populate_entities();
         initialize_enemies();
     }
@@ -602,9 +636,44 @@ namespace kotte
         return "Unknown";
     }
 
-    void Application::populate_entities(){
-        // Match the generation density so initial creation does not repeatedly
-        // relocate slot storage. Handles remain valid even if this estimate grows.
+    void Application::populate_entities() {
+        if (configuration_ == WorldConfiguration::stress) {
+            populate_stress_entities();
+        }
+        else {
+            populate_gameplay_entities();
+        }
+    }
+
+    void Application::populate_gameplay_entities() {
+        for (int y = 0; y < map_.height(); ++y) {
+            const std::string_view row = gameplay_layout.at(static_cast<std::size_t>(y));
+            for (int x = 0; x < map_.width(); ++x) {
+                const Vector2 world_position = tile_centre(x, y);
+                switch (row.at(static_cast<std::size_t>(x))) {
+                case 'P':
+                    player_handle_ = create_world_entity({ EntityKind::player, world_position });
+                    break;
+                case 'c':
+                    (void)create_world_entity({ EntityKind::crate, world_position });
+                    break;
+                case 'e':
+                    enemy_handles_.push_back(create_world_entity({ EntityKind::enemy, world_position }));
+                    break;
+                default:
+                    break;
+                }
+            }
+        }
+    }
+
+    EntityHandle Application::create_world_entity(const Entity& new_entity) {
+        const EntityHandle handle = entities_.create(new_entity);
+        spatial_grid_.insert(handle, entity_world_bounds(new_entity));
+        return handle;
+    }
+
+    void Application::populate_stress_entities() {
         entities_.reserve(map_.tile_count() / 4);
 
         const Entity player_entity{EntityKind::player, {tile_size_ * 2.5f, tile_size_ * 2.5f}};
@@ -618,8 +687,7 @@ namespace kotte
                 }
 
                 const std::uint8_t kind_roll = random_.next<20, std::uint8_t>();
-                // Week 3's inert bomb markers are no longer needed: every bomb
-                // now enters the world through the explicit lifetime path.
+          
                 if(kind_roll >= 15 && kind_roll < 19){
                     continue;
                 }
@@ -640,8 +708,6 @@ namespace kotte
     }
 
     void Application::initialize_enemies(){
-        // Finish every world-generation roll before drawing runtime headings.
-        // This preserves the complete Week 4 layout for the reference seed.
         for(const EntityHandle enemy_handle : enemy_handles_){
             Entity& enemy = entity(enemy_handle);
             enemy.movement_heading = static_cast<CardinalDirection>(
