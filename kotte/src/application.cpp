@@ -393,8 +393,9 @@ namespace kotte
         for(const PlaceBombRequest& request : place_bomb_requests_){
             const Entity* owner = entities_.try_get(request.owner);
             if (owner == nullptr || owner->kind != EntityKind::player
-                || owner_has_active_bomb(request.owner)) {
-
+                || owner_has_active_bomb(request.owner)
+                || tile_has_live_bomb(request.world_position)) {
+                continue;
             }
 
             const Entity bomb{
