@@ -100,11 +100,30 @@ namespace
     }
 }
 
+void clear_invalidates_every_old_handle() {
+    kotte::EntityStore store;
+
+    const kotte::EntityHandle player_handle = store.create({ kotte::EntityKind::player });
+    const kotte::EntityHandle crate_handle = store.create({ kotte::EntityKind::crate });
+    require(store.destroy(crate_handle), "Setup: a freed slot must exist before clear().");
+
+    store.clear();
+    require(store.live_count() == 0, "clear() must destroy every live entity.");
+    require(!store.contains(player_handle), "clear() must invalidate live handles.");
+
+    const kotte::EntityHandle first = store.create({ kotte::EntityKind::player });
+    const kotte::EntityHandle second = store.create({ kotte::EntityKind::enemy });
+    require(store.slot_count() == 2, "clear() must keep slots for reuse instead of growing.");
+    require(first != second, "Reused slots must not be handed out twice.");
+    require(!store.contains(player_handle), "An old-round handle must not resolve to a new-round entity.");
+    require(!store.contains(crate_handle), "An already stale handle must stay stale after clear().");
+}
 int main(){
     try{
         stale_handle_cannot_access_a_reused_slot();
         handles_survive_storage_reallocation();
         relationships_do_not_keep_stale_owners_alive();
+        clear_invalidates_every_old_handle();
         std::println("EntityStore tests passed.");
         return 0;
     } catch(const std::exception& error){

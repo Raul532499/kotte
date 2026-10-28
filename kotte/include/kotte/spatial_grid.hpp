@@ -35,6 +35,7 @@ namespace kotte
             Rectangle new_world_bounds);
 
         [[nodiscard]] SpatialQuery query(Rectangle world_bounds) const;
+        void clear() noexcept;
 
         [[nodiscard]] int columns() const noexcept;
         [[nodiscard]] int rows() const noexcept;

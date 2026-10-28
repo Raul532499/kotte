@@ -86,6 +86,24 @@ namespace kotte
         return try_get(handle) != nullptr;
     }
 
+    void EntityStore::clear() {
+        // Reserve first so the loop below cannot fail halfway through.
+        free_slots_.reserve(slots_.size());
+
+        for (std::size_t index = 0; index < slots_.size(); ++index) {
+            Slot& slot = slots_[index];
+            if (!slot.entity.has_value()) {
+                continue; // Already free and already on the free list.
+            }
+
+            slot.entity.reset();
+            slot.generation = next_generation(slot.generation);
+            free_slots_.push_back(static_cast<std::uint32_t>(index));
+        }
+
+        live_count_ = 0;
+    }
+
     std::size_t EntityStore::live_count() const noexcept{
         return live_count_;
     }

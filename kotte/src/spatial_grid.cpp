@@ -85,6 +85,12 @@ namespace kotte
         return result;
     }
 
+    void SpatialGrid::clear() noexcept {
+        for (Cell& cell : cells_) {
+            cell.clear();
+        }
+    }
+
     int SpatialGrid::columns() const noexcept{
         return columns_;
     }

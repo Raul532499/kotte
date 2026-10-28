@@ -84,6 +84,9 @@ namespace kotte
         // boundaries visible as the simulation grows.
         begin_frame();
         collect_frame_actions();
+        if (frame_actions_.restart) {
+            restart_round();
+        }
         if (round_state_ == RoundState::playing) {
             update_gameplay(delta_time);
             update_timed_gameplay(delta_time);
@@ -110,6 +113,7 @@ namespace kotte
             request_exit();
         }
 
+        frame_actions_.restart = round_state_ != RoundState::playing && IsKeyPressed(KEY_R);
         if (round_state_ != RoundState::playing) {
             return;
         }
@@ -225,6 +229,26 @@ namespace kotte
         }
     }
 
+    void Application::restart_round() {
+       
+        bomb_detonated_facts_.clear();
+        destroy_entity_requests_.clear();
+        player_hit_facts_.clear();
+        blast_effects_.clear();
+
+        enemy_handles_.clear();
+        active_bomb_handles_.clear();
+
+        spatial_grid_.clear();
+
+        random_ = Random{ seed_ };
+        map_ = make_world_map(configuration_, random_);
+        populate_entities();
+        initialize_enemies();
+
+        round_state_ = RoundState::playing;
+        defeat_source_ = HitSource::blast;
+    }
     void Application::update_presentation(float delta_time){
         for(BlastEffect& effect : blast_effects_){
             effect.remaining_seconds -= delta_time;
@@ -516,7 +540,7 @@ namespace kotte
         std::size_t visible_entities = 0;
         renderer_.clear();
 
-        // Blast effects are short-lived presentation values, not authoritative
+        // Blast effects ade short-lived presentation values, not authoritative
         // entities. Rebuilding commands here keeps their lifetime out of gameplay.
         constexpr float blast_inset = 3.0f;
         for(const BlastEffect& effect : blast_effects_){
@@ -638,6 +662,15 @@ namespace kotte
                 (window_.height() - banner_font_size_) / 2,
                 banner_font_size_,
                 won ? GREEN : RED);
+
+            constexpr const char* restart_hint = "press R to restart";
+            const int hint_width = MeasureText(restart_hint, 20);
+            DrawText(
+                restart_hint,
+                (window_.width() - hint_width) / 2,
+                (window_.height() + banner_font_size_) / 2 + 10,
+                20,
+                RAYWHITE);
         }
 
         diagnostics = std::format("seed: {}", seed_);
@@ -647,7 +680,7 @@ namespace kotte
             "world: {} x {} tiles | {} total", map_.width(), map_.height(), map_.tile_count());
         DrawText(diagnostics.c_str(), 10, window_.height() - 54, 20, RAYWHITE);
 
-        DrawText("move: WASD/arrows | bomb: Space | quit: Q/Escape", 10, window_.height() - 30, 20, LIGHTGRAY);
+        DrawText("move: WASD/arrows | bomb: Space | restart: R (after round) | quit: Q/Escape", 10, window_.height() - 30, 20, LIGHTGRAY);
     }
 
     std::string_view Application::round_status_text() const noexcept {

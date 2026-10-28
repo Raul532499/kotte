@@ -56,6 +56,7 @@ namespace kotte
         struct FrameActions final {
             Vector2 player_movement_direction{};
             bool place_bomb = false;
+            bool restart = false;
         };
 
         struct PlaceBombRequest final {
@@ -105,6 +106,7 @@ namespace kotte
         void resolve_player_hits();
         void apply_structural_mutations();
         void update_round_state();
+        void restart_round();
         void update_presentation(float delta_time);
         void update_player(float delta_time);
         void try_move_player(Vector2 axis_displacement);

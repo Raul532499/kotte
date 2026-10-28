@@ -17,6 +17,7 @@ namespace kotte
 
         [[nodiscard]] EntityHandle create(Entity entity);
         [[nodiscard]] bool destroy(EntityHandle handle);
+        void clear();
 
         // Resolved pointers are borrowed views and must not cross a structural
         // mutation. Handles remain the durable identity held by other systems.
