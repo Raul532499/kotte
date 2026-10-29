@@ -126,6 +126,7 @@ namespace kotte
             BlastEffect& effect,
             int column,
             int row);
+        void chain_detonate(EntityHandle bomb_handle);
         void append_blast_ray(
             BlastEffect& effect,
             int origin_column,

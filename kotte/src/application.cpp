@@ -180,8 +180,9 @@ namespace kotte
         }
     }
 
-    void Application::resolve_gameplay_facts(){
-        for(const BombDetonated& fact : bomb_detonated_facts_){
+    void Application::resolve_gameplay_facts() {
+        for (std::size_t index = 0; index < bomb_detonated_facts_.size(); ++index) {
+            const BombDetonated fact = bomb_detonated_facts_[index];
             BlastEffect effect;
             effect.remaining_seconds = blast_effect_seconds_;
             effect.tile_centres.reserve(static_cast<std::size_t>(fact.blast_range) * 4 + 1);
@@ -516,14 +517,12 @@ namespace kotte
                 continue;
             }
 
-            switch(candidate->kind){
+            switch (candidate->kind) {
             case EntityKind::bomb:
-            case EntityKind::enemy:
-                destroy_entity_requests_.push_back({handle});
+                chain_detonate(handle);
                 break;
-            case EntityKind::crate:
-                destroy_entity_requests_.push_back({handle});
-                blocked_by_crate = true;
+            case EntityKind::enemy:
+                destroy_entity_requests_.push_back({ handle });
                 break;
             case EntityKind::range_pickup:
                 break;
@@ -536,7 +535,21 @@ namespace kotte
 
         return blocked_by_crate;
     }
+    void Application::chain_detonate(EntityHandle bomb_handle) {
+        Entity* bomb = entities_.try_get(bomb_handle);
+        if (bomb == nullptr || !bomb->bomb_state.has_value() || bomb->bomb_state->detonation_requested) {
+            return;
+        }
 
+        BombState& state = *bomb->bomb_state;
+        state.detonation_requested = true;
+        bomb_detonated_facts_.push_back({
+            bomb_handle,
+            state.owner,
+            bomb->world_position,
+            state.blast_range
+            });
+    }
     void Application::append_blast_ray(
         BlastEffect& effect,
         int origin_column,
