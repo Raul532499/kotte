@@ -431,7 +431,7 @@ namespace kotte
         for(const PlaceBombRequest& request : place_bomb_requests_){
             const Entity* owner = entities_.try_get(request.owner);
             if (owner == nullptr || owner->kind != EntityKind::player
-                || owner_has_active_bomb(request.owner)
+                || active_bomb_count(request.owner) >= bomb_capacity_
                 || tile_has_live_bomb(request.world_position)) {
                 continue;
             }
@@ -713,6 +713,8 @@ namespace kotte
         DrawText(diagnostics.c_str(), 10, 130, 20, YELLOW);
         diagnostics = std::format("blast range: {} (max {})", player_blast_range_, max_blast_range_);
         DrawText(diagnostics.c_str(), 10, 178, 20, YELLOW);
+        diagnostics = std::format("bombs: {} / {}", active_bomb_count(player_handle_), bomb_capacity_);
+        DrawText(diagnostics.c_str(), 10, 202, 20, YELLOW);
 
         if (round_state_ != RoundState::playing) {
             const bool won = round_state_ == RoundState::won;
@@ -999,13 +1001,15 @@ namespace kotte
         return static_cast<CardinalDirection>(new_value);
     }
 
-    bool Application::owner_has_active_bomb(EntityHandle owner) const noexcept{
-        return std::ranges::any_of(active_bomb_handles_, [this, owner](EntityHandle bomb_handle){
+    std::size_t Application::active_bomb_count(EntityHandle owner) const noexcept {
+        
+        const auto owned = std::ranges::count_if(active_bomb_handles_, [this, owner](EntityHandle bomb_handle) {
             const Entity* bomb = entities_.try_get(bomb_handle);
             return bomb != nullptr
                 && bomb->bomb_state.has_value()
                 && bomb->bomb_state->owner == owner;
-        });
+            });
+        return static_cast<std::size_t>(owned);
     }
 
     bool Application::tile_has_live_bomb(Vector2 tile_position) const noexcept {
