@@ -96,6 +96,10 @@ namespace kotte
             HitSource source = HitSource::blast;
         };
 
+        struct PickupCollected final {
+            EntityHandle pickup;
+        };
+
 
         void run_frame(float delta_time);
         void begin_frame() noexcept;
@@ -112,6 +116,8 @@ namespace kotte
         void try_move_player(Vector2 axis_displacement);
         void update_enemies(float delta_time);
         void detect_player_enemy_contacts();
+        void detect_pickup_contacts();
+        void resolve_pickups();
         void update_bomb_escapes();
         void queue_bomb_placement();
         void apply_entity_destructions();
@@ -161,6 +167,8 @@ namespace kotte
         static constexpr float enemy_speed_ = 80.0f;
         static constexpr float bomb_fuse_seconds_ = 2.0f;
         static constexpr std::uint8_t bomb_blast_range_ = 3;
+        static constexpr std::uint8_t max_blast_range_ = 6;
+        static constexpr Color range_pickup_color_{ 0x4e, 0xc9, 0xf2, 0xff };
         static constexpr float blast_effect_seconds_ = 0.35f;
         static constexpr Color background_color_{0x11, 0x22, 0x33, 0xff};
         static constexpr Color floor_colors_[3]{
@@ -192,6 +200,8 @@ namespace kotte
         std::vector<DestroyEntityRequest> destroy_entity_requests_;
         std::vector<BlastEffect> blast_effects_;
         std::vector<PlayerHit> player_hit_facts_;
+        std::vector<PickupCollected> pickup_collected_facts_;
+        std::uint8_t player_blast_range_ = bomb_blast_range_;
         RoundState round_state_ = RoundState::playing;
         HitSource defeat_source_ = HitSource::blast;
         CollisionDiagnostics collision_diagnostics_;

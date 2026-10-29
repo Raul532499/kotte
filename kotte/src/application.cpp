@@ -19,7 +19,7 @@ namespace kotte
             "###################",
             "#.....c.....c.....#",
             "#.P..c..c.....c...#",
-            "#...c....c..e...c.#",
+            "#..rc....c..e...c.#",
             "#.c...c.....c.....#",
             "#....c..c.c....c..#",
             "#.......c...c...e.#",
@@ -104,6 +104,7 @@ namespace kotte
         assert(bomb_detonated_facts_.empty());
         assert(destroy_entity_requests_.empty());
         assert(player_hit_facts_.empty());
+        assert(pickup_collected_facts_.empty());
         frame_actions_ = {};
         collision_diagnostics_ = {};
     }
@@ -146,6 +147,7 @@ namespace kotte
         update_enemies(delta_time);
         update_bomb_escapes();
         detect_player_enemy_contacts();
+        detect_pickup_contacts();
         queue_bomb_placement();
     }
 
@@ -198,12 +200,29 @@ namespace kotte
             append_blast_ray(effect, origin_column, origin_row, 0, 1, fact.blast_range);
             append_blast_ray(effect, origin_column, origin_row, -1, 0, fact.blast_range);
 
+            resolve_pickups();
+
             blast_effects_.push_back(std::move(effect));
         }
 
         bomb_detonated_facts_.clear();
 
+        resolve_pickups();
+
         resolve_player_hits();
+    }
+
+    void Application::resolve_pickups() {
+        for (const PickupCollected& fact : pickup_collected_facts_) {
+            
+            destroy_entity_requests_.push_back({ fact.pickup });
+
+            player_blast_range_ = std::min(
+                static_cast<std::uint8_t>(player_blast_range_ + 1),
+                max_blast_range_);
+        }
+
+        pickup_collected_facts_.clear();
     }
 
     void Application::resolve_player_hits() {
@@ -235,6 +254,7 @@ namespace kotte
         bomb_detonated_facts_.clear();
         destroy_entity_requests_.clear();
         player_hit_facts_.clear();
+        pickup_collected_facts_.clear();
         blast_effects_.clear();
 
         enemy_handles_.clear();
@@ -249,6 +269,7 @@ namespace kotte
 
         round_state_ = RoundState::playing;
         defeat_source_ = HitSource::blast;
+        player_blast_range_ = bomb_blast_range_;
     }
     void Application::update_presentation(float delta_time){
         for(BlastEffect& effect : blast_effects_){
@@ -376,6 +397,23 @@ namespace kotte
         }
     }
 
+    void Application::detect_pickup_contacts() {
+        const Rectangle player_bounds = entity_collision_bounds(player());
+        const SpatialQuery nearby = spatial_grid_.query(player_bounds);
+
+        for (const EntityHandle candidate_handle : nearby.entity_handles) {
+            const Entity* candidate = entities_.try_get(candidate_handle);
+            if (candidate == nullptr || candidate->kind != EntityKind::range_pickup) {
+                continue;
+            }
+
+            // Passing near the pickup is not enough; the bounds must overlap.
+            if (CheckCollisionRecs(player_bounds, entity_collision_bounds(*candidate))) {
+                pickup_collected_facts_.push_back({ candidate_handle });
+            }
+        }
+    }
+
     void Application::queue_bomb_placement(){
         if(!frame_actions_.place_bomb){
             return;
@@ -404,7 +442,7 @@ namespace kotte
                 .bomb_state = BombState{
                     .owner = request.owner,
                     .fuse_remaining = bomb_fuse_seconds_,
-                    .blast_range = bomb_blast_range_
+                    .blast_range = player_blast_range_
                 }
             };
             const EntityHandle bomb_handle = entities_.create(bomb);
@@ -486,6 +524,8 @@ namespace kotte
             case EntityKind::crate:
                 destroy_entity_requests_.push_back({handle});
                 blocked_by_crate = true;
+                break;
+            case EntityKind::range_pickup:
                 break;
             case EntityKind::player:
                 // Player-hit consequences are outside the Week 6 lifetime seam.
@@ -604,7 +644,9 @@ namespace kotte
             const Vector2 screen_position = camera_.world_to_screen({bounds.x, bounds.y});
             bounds.x = screen_position.x;
             bounds.y = screen_position.y;
-            const RenderLayer layer = visible_candidate->kind == EntityKind::bomb
+            const bool on_ground = visible_candidate->kind == EntityKind::bomb
+                || visible_candidate->kind == EntityKind::range_pickup;
+            const RenderLayer layer = on_ground
                 ? RenderLayer::ground
                 : RenderLayer::world;
             const bool defeated_player = visible_candidate->kind == EntityKind::player
@@ -669,6 +711,8 @@ namespace kotte
         DrawText(diagnostics.c_str(), 10, 106, 20, RAYWHITE);
         diagnostics = std::format("round: {}", round_status_text());
         DrawText(diagnostics.c_str(), 10, 130, 20, YELLOW);
+        diagnostics = std::format("blast range: {} (max {})", player_blast_range_, max_blast_range_);
+        DrawText(diagnostics.c_str(), 10, 178, 20, YELLOW);
 
         if (round_state_ != RoundState::playing) {
             const bool won = round_state_ == RoundState::won;
@@ -736,6 +780,9 @@ namespace kotte
                     break;
                 case 'e':
                     enemy_handles_.push_back(create_world_entity({ EntityKind::enemy, world_position }));
+                    break;
+                case 'r':
+                    (void)create_world_entity({ EntityKind::range_pickup, world_position });
                     break;
                 default:
                     break;
@@ -819,6 +866,7 @@ namespace kotte
         case EntityKind::bomb: size = {22.0f, 22.0f}; break;
         case EntityKind::crate: size = {36.0f, 48.0f}; break;
         case EntityKind::enemy: size = {28.0f, 30.0f}; break;
+        case EntityKind::range_pickup: size = { 20.0f, 20.0f }; break;
         }
 
         const Vector2 top_left = entity.world_position - Vector2{size.x / 2.0f, size.y};
@@ -835,6 +883,7 @@ namespace kotte
         case EntityKind::bomb: size = {18.0f, 12.0f}; break;
         case EntityKind::crate: size = {32.0f, 32.0f}; break;
         case EntityKind::enemy: size = {24.0f, 14.0f}; break;
+        case EntityKind::range_pickup: size = { 20.0f, 14.0f }; break;
         }
 
         const Vector2 top_left = entity.world_position - Vector2{size.x / 2.0f, size.y};
@@ -914,6 +963,8 @@ namespace kotte
         case EntityKind::enemy:
         case EntityKind::bomb:
             return true;
+        case EntityKind::range_pickup:
+            return false;
         }
 
         return false;
@@ -985,6 +1036,7 @@ namespace kotte
         case EntityKind::bomb: return bomb_color_;
         case EntityKind::crate: return crate_color_;
         case EntityKind::enemy: return enemy_color_;
+        case EntityKind::range_pickup: return range_pickup_color_;
         }
         return MAGENTA;
     }
