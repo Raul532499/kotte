@@ -201,7 +201,6 @@ namespace kotte
             append_blast_ray(effect, origin_column, origin_row, 0, 1, fact.blast_range);
             append_blast_ray(effect, origin_column, origin_row, -1, 0, fact.blast_range);
 
-            resolve_pickups();
 
             blast_effects_.push_back(std::move(effect));
         }
@@ -252,7 +251,7 @@ namespace kotte
     }
 
     void Application::restart_round() {
-       
+        place_bomb_requests_.clear();
         bomb_detonated_facts_.clear();
         destroy_entity_requests_.clear();
         player_hit_facts_.clear();
@@ -261,7 +260,7 @@ namespace kotte
 
         enemy_handles_.clear();
         active_bomb_handles_.clear();
-
+        entities_.clear();
         spatial_grid_.clear();
 
         random_ = Random{ seed_ };
@@ -526,10 +525,13 @@ namespace kotte
             case EntityKind::enemy:
                 destroy_entity_requests_.push_back({ handle });
                 break;
+            case EntityKind::crate:
+                destroy_entity_requests_.push_back({ handle });
+                blocked_by_crate = true;
+                break;
             case EntityKind::range_pickup:
                 break;
             case EntityKind::player:
-                // Player-hit consequences are outside the Week 6 lifetime seam.
                 player_hit_facts_.push_back({ HitSource::blast });
                 break;
             }
@@ -732,6 +734,8 @@ namespace kotte
         DrawText(diagnostics.c_str(), 10, 106, 20, RAYWHITE);
         diagnostics = std::format("round: {}", round_status_text());
         DrawText(diagnostics.c_str(), 10, 130, 20, YELLOW);
+        diagnostics = std::format("objective: destroy all enemies ({} left)", enemy_handles_.size());
+        DrawText(diagnostics.c_str(), 10, 154, 20, YELLOW);
         diagnostics = std::format("blast range: {} (max {})", player_blast_range_, max_blast_range_);
         DrawText(diagnostics.c_str(), 10, 178, 20, YELLOW);
         diagnostics = std::format("bombs: {} / {}", active_bomb_count(player_handle_), bomb_capacity_);
