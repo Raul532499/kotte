@@ -152,7 +152,7 @@ namespace kotte
     }
 
     void Application::update_timed_gameplay(float delta_time){
-        // This list is independent of camera queries, so off-screen fuses advance.
+        shield_remaining_ = std::max(0.0f, shield_remaining_ - delta_time);
         for(const EntityHandle bomb_handle : active_bomb_handles_){
             Entity* bomb = entities_.try_get(bomb_handle);
             if(bomb == nullptr || !bomb->bomb_state.has_value()
@@ -227,7 +227,8 @@ namespace kotte
     }
 
     void Application::resolve_player_hits() {
-        if (round_state_ == RoundState::playing && !player_hit_facts_.empty()) {
+        const bool shielded = shield_remaining_ > 0.0f;
+        if (round_state_ == RoundState::playing && !shielded && !player_hit_facts_.empty()) {
             round_state_ = RoundState::lost;
             defeat_source_ = player_hit_facts_.front().source;
         }
@@ -271,6 +272,7 @@ namespace kotte
         round_state_ = RoundState::playing;
         defeat_source_ = HitSource::blast;
         player_blast_range_ = bomb_blast_range_;
+        shield_remaining_ = shield_seconds_;
     }
     void Application::update_presentation(float delta_time){
         for(BlastEffect& effect : blast_effects_){
@@ -662,11 +664,17 @@ namespace kotte
             const RenderLayer layer = on_ground
                 ? RenderLayer::ground
                 : RenderLayer::world;
-            const bool defeated_player = visible_candidate->kind == EntityKind::player
-                && round_state_ == RoundState::lost;
+            const bool is_player = visible_candidate->kind == EntityKind::player;
+            Color color = entity_color(visible_candidate->kind);
+            if (is_player && round_state_ == RoundState::lost) {
+                color = defeated_player_color_;
+            }
+            else if (is_player && shield_remaining_ > 0.0f) {
+                color = shielded_player_color_;
+            }
             renderer_.submit({
                 bounds,
-                defeated_player ? defeated_player_color_ : entity_color(visible_candidate->kind),
+                color,
                 layer,
                 visible_candidate->world_position.y,
                 entity_roundness(visible_candidate->kind)
@@ -728,6 +736,10 @@ namespace kotte
         DrawText(diagnostics.c_str(), 10, 178, 20, YELLOW);
         diagnostics = std::format("bombs: {} / {}", active_bomb_count(player_handle_), bomb_capacity_);
         DrawText(diagnostics.c_str(), 10, 202, 20, YELLOW);
+        diagnostics = shield_remaining_ > 0.0f
+            ? std::format("shield: {:.1f} s", shield_remaining_)
+            : std::string{ "shield: off" };
+        DrawText(diagnostics.c_str(), 10, 226, 20, YELLOW);
 
         if (round_state_ != RoundState::playing) {
             const bool won = round_state_ == RoundState::won;

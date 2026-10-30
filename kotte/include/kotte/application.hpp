@@ -170,6 +170,8 @@ namespace kotte
         static constexpr std::uint8_t bomb_blast_range_ = 3;
         static constexpr std::uint8_t max_blast_range_ = 6;
         static constexpr std::size_t bomb_capacity_ = 3;
+        static constexpr float shield_seconds_ = 5.0f;
+        static constexpr Color shielded_player_color_{ 0xff, 0xff, 0xff, 0xff };
         static constexpr Color range_pickup_color_{ 0x4e, 0xc9, 0xf2, 0xff };
         static constexpr float blast_effect_seconds_ = 0.35f;
         static constexpr Color background_color_{0x11, 0x22, 0x33, 0xff};
@@ -204,6 +206,7 @@ namespace kotte
         std::vector<PlayerHit> player_hit_facts_;
         std::vector<PickupCollected> pickup_collected_facts_;
         std::uint8_t player_blast_range_ = bomb_blast_range_;
+        float shield_remaining_ = shield_seconds_;
         RoundState round_state_ = RoundState::playing;
         HitSource defeat_source_ = HitSource::blast;
         CollisionDiagnostics collision_diagnostics_;
